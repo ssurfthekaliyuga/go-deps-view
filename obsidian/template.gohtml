@@ -1,0 +1,26 @@
+{{- if .Tags }}
+---
+
+{{ range .Tags }}#{{ . }} {{ end }}
+
+{{- end}}
+
+{{- if .Imports }}
+
+---
+# Imports
+{{ range .Imports }}[[{{ . }}]] {{ end }}
+{{- end }}
+
+---
+# Body
+
+
+{{- if .FromInternal }}
+
+---
+# Imports From Internal Packages
+{{ range .FromInternal }}[[{{ . }}]] {{ end }}
+{{- end }}
+
+---
