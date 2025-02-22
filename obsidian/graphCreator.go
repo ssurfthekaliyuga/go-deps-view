@@ -12,28 +12,6 @@ import (
 	"text/template"
 )
 
-type ConflictsError struct {
-	Filenames []string
-	Vault     string
-}
-
-func newConflictsError(op errs.Op, filenames []string, vault string) error {
-	err := &ConflictsError{
-		Filenames: filenames,
-		Vault:     vault,
-	}
-
-	return errs.W(op, err)
-}
-
-func (e *ConflictsError) Error() string {
-	return fmt.Sprintf("files: %v already exists in %s", e.Filenames, e.Vault)
-}
-
-func (e *ConflictsError) Unwrap() error {
-	return os.ErrExist
-}
-
 type Node struct {
 	Name         string
 	Tags         []string
@@ -42,19 +20,41 @@ type Node struct {
 }
 
 type GraphCreator struct {
-	vault     *os.Root
-	template  *template.Template
-	tags      []string
-	pathDelim string
+	vault    *os.Root
+	template *template.Template
+	delim    string
+	core     map[string]struct{}
 }
 
-func NewGraphCreator(vault *os.Root, template *template.Template, pathDelim string, tags []string) *GraphCreator {
-	return &GraphCreator{
-		vault:     vault,
-		template:  template,
-		pathDelim: pathDelim,
-		tags:      tags,
+func NewGraphCreator(vault *os.Root, template *template.Template, delim string) *GraphCreator {
+	gc := &GraphCreator{
+		vault:    vault,
+		template: template,
+		delim:    delim,
+		core:     make(map[string]struct{}),
 	}
+
+	slice := []string{
+		"bufio", "bytes", "cmp", "context",
+		"crypto/rand", "database/sql", "database/driver",
+		"embed", "encoding", "encoding/json",
+		"errors", "flag", "fmt", "io", "io/fs", "iter",
+		"log", "log/slog", "log/syslog",
+		"maps", "math", "math/bits", "math/big", "math/rand/v2",
+		"net", "net/http", "os", "os/exec", "os/signal", "os/user",
+		"path", "path/filepath", "reflect",
+		"regexp", "runtime", "slices", "strconv",
+		"strings", "sync", "sync/atomic", "testing",
+		"time", "unicode", "unicode", "unicode/utf8",
+		"unsafe",
+	}
+
+	for _, pkg := range slice {
+		pkg = gc.nodeFilename(pkg)
+		gc.core[pkg] = struct{}{}
+	}
+
+	return gc
 }
 
 func (c *GraphCreator) CreateGraph(packages map[string][]string) error {
@@ -86,16 +86,7 @@ func (c *GraphCreator) CreateGraph(packages map[string][]string) error {
 func (c *GraphCreator) CreateNode(name string, imports []string) error {
 	const op errs.Op = "obsidian.GraphCreator.CreateNode"
 
-	node := Node{
-		Name:         c.nodeFilename(name),
-		Tags:         c.tags,
-		Imports:      make([]string, 0, len(imports)),
-		FromInternal: make([]string, 0, len(imports)),
-	}
-
-	if c.isInternalPackage(name) {
-		node.Tags = append(node.Tags, "internal")
-	}
+	node := Node{Name: c.nodeFilename(name)}
 
 	for _, pkg := range imports {
 		pkg = c.fixPackageName(pkg)
@@ -106,6 +97,8 @@ func (c *GraphCreator) CreateNode(name string, imports []string) error {
 			node.Imports = append(node.Imports, pkg)
 		}
 	}
+
+	node.Tags = append(node.Tags, c.tags(node)...)
 
 	file, err := c.vault.OpenFile(node.Name, os.O_WRONLY|os.O_CREATE, 0666) //todo perm
 	if err != nil {
@@ -121,16 +114,38 @@ func (c *GraphCreator) CreateNode(name string, imports []string) error {
 }
 
 func (c *GraphCreator) fixPackageName(name string) string {
-	r := strings.NewReplacer("/", c.pathDelim, "vendor/golang.org/", "")
-	return r.Replace(name)
+	return strings.
+		NewReplacer("/", c.delim, "vendor/golang.org/", "").
+		Replace(name)
 }
 
 func (c *GraphCreator) nodeFilename(name string) string {
 	return c.fixPackageName(name) + ".md"
 }
 
+func (c *GraphCreator) tags(node Node) []string {
+	tags := []string{"go", "std"}
+
+	switch {
+	case c.isInternalPackage(node.Name):
+		tags = append(tags, "internal")
+	case c.isCore(node.Name):
+		tags = append(tags, "core")
+	default:
+		tags = append(tags, "specific")
+	}
+
+	return tags
+}
+
 func (c *GraphCreator) isInternalPackage(pkg string) bool {
 	return strings.Contains(pkg, "internal") || strings.Contains(pkg, "x")
+}
+
+func (c *GraphCreator) isCore(pkg string) bool {
+	_, ok := c.core[pkg]
+	fmt.Println(pkg, c.core)
+	return ok
 }
 
 func (c *GraphCreator) filenameConflicts(packages iter.Seq[string]) ([]string, error) {

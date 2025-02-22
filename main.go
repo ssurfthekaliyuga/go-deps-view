@@ -13,7 +13,7 @@ import (
 // todo parse not only std (do manual tests)
 // todo explore behaviour when user works with not his own vault
 // todo think about file perms
-// todo refactor template and write tests for it
+// todo move the std-related logic from obsidian.GraphCreator
 
 // run then restart for package names will be added to obsidian spelling dict
 
@@ -29,13 +29,12 @@ func main() {
 	}
 
 	importsParser := analyzer.NewImportsParser()
-	graphCreator := obsidian.NewGraphCreator(obsidianVault, template, "-", []string{"go", "std"})
-
 	packages, err := importsParser.ParseImports(context.Background(), "std")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	graphCreator := obsidian.NewGraphCreator(obsidianVault, template, "-")
 	err = graphCreator.CreateGraph(packages)
 	if err != nil {
 		log.Fatalln(err)
