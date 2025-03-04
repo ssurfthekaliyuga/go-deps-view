@@ -14,11 +14,12 @@ import (
 // todo explore behaviour when user works with not his own vault
 // todo think about file perms
 // todo move the std-related logic from obsidian.GraphCreator
+// todo directory if not exist
 
 // run then restart for package names will be added to obsidian spelling dict
 
 func main() {
-	obsidianVault, err := os.OpenRoot("/mnt/c/Users/Sasha/Documents/Obsidian/Std")
+	obsidianVault, err := os.OpenRoot("/mnt/c/Users/Sasha/Documents/Obsidian/Std/Go Standard Library")
 	if err != nil {
 		log.Fatalln(err)
 	}

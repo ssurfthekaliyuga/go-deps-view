@@ -2,7 +2,6 @@ package obsidian
 
 import (
 	"errors"
-	"fmt"
 	"golang.org/x/sync/errgroup"
 	"iter"
 	"maps"
@@ -124,27 +123,29 @@ func (c *GraphCreator) nodeFilename(name string) string {
 }
 
 func (c *GraphCreator) tags(node Node) []string {
-	tags := []string{"go", "std"}
+	tags := make([]string, 0)
 
+	hierarch := []string{"go", "pkg", "std"}
 	switch {
 	case c.isInternalPackage(node.Name):
-		tags = append(tags, "internal")
+		hierarch = append(hierarch, "internal")
 	case c.isCore(node.Name):
-		tags = append(tags, "core")
+		hierarch = append(hierarch, "core")
 	default:
-		tags = append(tags, "specific")
+		hierarch = append(hierarch, "specific")
 	}
+
+	tags = append(tags, strings.Join(hierarch, "/"))
 
 	return tags
 }
 
 func (c *GraphCreator) isInternalPackage(pkg string) bool {
-	return strings.Contains(pkg, "internal") || strings.Contains(pkg, "x")
+	return strings.Contains(pkg, "internal") || strings.Contains(pkg, "golang.org")
 }
 
 func (c *GraphCreator) isCore(pkg string) bool {
 	_, ok := c.core[pkg]
-	fmt.Println(pkg, c.core)
 	return ok
 }
 
